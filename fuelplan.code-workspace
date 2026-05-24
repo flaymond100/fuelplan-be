@@ -1,0 +1,29 @@
+{
+  // Three-folder workspace: shared docs first, then the two code repos.
+  // The "shared" folder holds architecture, project brief, and decisions —
+  // cross-cutting context that both frontend and backend agents read first.
+  "folders": [
+    {
+      "name": "📚 shared (read first)",
+      "path": "./fuelplan-shared"
+    },
+    {
+      "name": "fuelplan (frontend)",
+      "path": "./fuelplan"
+    },
+    {
+      "name": "fuelplan-be (backend)",
+      "path": "./fuelplan-be"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/.git": true
+    }
+  }
+}

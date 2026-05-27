@@ -16,6 +16,8 @@ export interface PlanItem {
   label: string;
   what: string;
   carbsG: number;
+  fatG: number;
+  proteinG: number;
   fluidsMl: number;
   sodiumMg: number;
   caffeineMg: number;
@@ -24,6 +26,7 @@ export interface PlanItem {
 }
 
 export type PhaseId =
+  | 'pre_race_d3'
   | 'pre_race_d2'
   | 'pre_race_d1'
   | 'pre_race_morning'
@@ -97,9 +100,9 @@ export interface GenerationParams {
 // ── Prompt construction ───────────────────────────────────────────────────────
 
 const PHASE_MAP: Record<string, string[]> = {
-  '24h': ['pre_race_morning', 'race', 'recovery'],
-  '48h': ['pre_race_d1', 'pre_race_morning', 'race', 'recovery'],
-  '72h': ['pre_race_d2', 'pre_race_d1', 'pre_race_morning', 'race', 'recovery'],
+  '24h': ['pre_race_d1', 'pre_race_morning', 'race', 'recovery'],
+  '48h': ['pre_race_d2', 'pre_race_d1', 'pre_race_morning', 'race', 'recovery'],
+  '72h': ['pre_race_d3', 'pre_race_d2', 'pre_race_d1', 'pre_race_morning', 'race', 'recovery'],
 };
 
 function ageFromBirthDate(birthDate: string | null): string {
@@ -174,7 +177,7 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, no text 
   "totals": { "carbsG": <int>, "fluidsMl": <int>, "sodiumMg": <int>, "caffeineMg": <int>, "kcal": <int> },
   "phases": [
     {
-      "id": "<one of: pre_race_d2 | pre_race_d1 | pre_race_morning | race | recovery>",
+      "id": "<one of: pre_race_d3 | pre_race_d2 | pre_race_d1 | pre_race_morning | race | recovery>",
       "label": "<human-readable phase name>",
       "startOffsetMin": <int; negative = minutes before race start>,
       "endOffsetMin": <int>,
@@ -182,9 +185,11 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, no text 
       "items": [
         {
           "offsetMin": <int; negative = before start, 0 = race start, positive = after start>,
-          "label": "<e.g. T-72h | T-24h | T-30m | Start | T+1:30 | T+Finish+30m>",
+          "label": "<meal/event name e.g. Breakfast | Lunch | Pre-race snack | Aid station 3 | Recovery shake>",
           "what": "<specific food/drink description with rough quantities>",
           "carbsG": <int>,
+          "fat": <int>,
+          "protein": <int>,
           "fluidsMl": <int>,
           "sodiumMg": <int>,
           "caffeineMg": <int>,
@@ -244,6 +249,8 @@ function validateItem(val: unknown, path: string): PlanItem {
     label: assertString(i.label, `${path}.label`),
     what: assertString(i.what, `${path}.what`),
     carbsG: Math.round(assertNumber(i.carbsG, `${path}.carbsG`)),
+    fatG: Math.round(assertNumber(i.fat, `${path}.fat`)),
+    proteinG: Math.round(assertNumber(i.protein, `${path}.protein`)),
     fluidsMl: Math.round(assertNumber(i.fluidsMl, `${path}.fluidsMl`)),
     sodiumMg: Math.round(assertNumber(i.sodiumMg, `${path}.sodiumMg`)),
     caffeineMg: Math.round(assertNumber(i.caffeineMg, `${path}.caffeineMg`)),
@@ -253,7 +260,7 @@ function validateItem(val: unknown, path: string): PlanItem {
 }
 
 const VALID_PHASE_IDS = new Set<string>([
-  'pre_race_d2', 'pre_race_d1', 'pre_race_morning', 'race', 'recovery',
+  'pre_race_d3', 'pre_race_d2', 'pre_race_d1', 'pre_race_morning', 'race', 'recovery',
 ]);
 
 function validatePhase(val: unknown, idx: number): PlanPhase {

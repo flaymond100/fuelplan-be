@@ -192,6 +192,44 @@ router.post(
   },
 );
 
+// ── GET /api/plans/:id/gpx ────────────────────────────────────────────────────
+// Returns a short-lived signed URL to the stored GPX file.
+// The gpx-files bucket is service-role-only so the FE can't read it directly.
+
+router.get('/:id/gpx', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+  const { id } = req.params;
+
+  const { data: plan, error } = await supabaseService
+    .from('plans')
+    .select('gpx_file_path')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !plan) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Plan not found' } });
+    return;
+  }
+
+  if (!plan.gpx_file_path) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'No GPX file for this plan' } });
+    return;
+  }
+
+  const { data: signed, error: signError } = await supabaseService.storage
+    .from('gpx-files')
+    .createSignedUrl(plan.gpx_file_path, 300); // 5-min TTL
+
+  if (signError || !signed?.signedUrl) {
+    console.error('GPX signed URL failed', { userId, planId: id, error: signError?.message });
+    res.status(500).json({ error: { code: 'STORAGE_ERROR', message: 'Failed to create GPX URL' } });
+    return;
+  }
+
+  res.json({ url: signed.signedUrl });
+});
+
 // ── GET /api/plans/:id ────────────────────────────────────────────────────────
 
 router.get('/:id', authenticate, async (req: Request, res: Response): Promise<void> => {

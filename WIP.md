@@ -3,7 +3,7 @@
 > Per-repo session state. Read first on session start. Update last on session end.
 > Cross-repo coordination goes in `../fuelplan-shared/WIP.md` instead.
 
-## Done this session
+## Done this session (2026-05-27 follow-up)
 
 - Added initial schema migration [migrations/0001_init.sql](migrations/0001_init.sql): `profiles`, `plans`, `subscriptions`, `plan_credits`, `processed_stripe_events` + RLS, auto-profile trigger, `gpx-files` storage bucket.
 - Added athlete profile fields migration [migrations/0002_profile_fields.sql](migrations/0002_profile_fields.sql).
@@ -14,6 +14,9 @@
   - [src/routes/plans.ts](src/routes/plans.ts) — `POST /api/plans/generate` (multipart; requireAuth + checkPlanAccess) and `GET /api/plans/:id`.
   - [src/app.ts](src/app.ts) — wired `plansRouter` at `/api/plans`.
   - [../fuelplan-shared/decisions/0003-plan-json-schema.md](../fuelplan-shared/decisions/0003-plan-json-schema.md) — locked plan_json schema.
+
+- **GPX signed URL endpoint**: `GET /api/plans/:id/gpx` — verifies ownership, returns 5-min signed URL from `gpx-files` bucket. FE wires `useRouteTrack` against it.
+- **Schema doc reconciliation**: updated `decisions/0003` to match deployed code — `fatG`/`proteinG` (not `fat`/`protein`) and 6 phase IDs. No code or FE changes required.
 
 ## Next up
 

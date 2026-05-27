@@ -6,23 +6,33 @@
 ## Done this session
 
 - Added initial schema migration [migrations/0001_init.sql](migrations/0001_init.sql): `profiles`, `plans`, `subscriptions`, `plan_credits`, `processed_stripe_events` + RLS, auto-profile trigger, `gpx-files` storage bucket.
+- Added athlete profile fields migration [migrations/0002_profile_fields.sql](migrations/0002_profile_fields.sql).
+- **Plan generation pipeline (this session):**
+  - [migrations/0003_plan_request_params.sql](migrations/0003_plan_request_params.sql) — adds `request_params jsonb` column to `plans` and the `insert_plan_and_decrement_credit` RPC function (atomic plan insert + credit decrement in one transaction).
+  - [src/services/gpxParser.ts](src/services/gpxParser.ts) — server-side GPX parse: haversine distance + smoothed elevation gain, 5 MB hard limit, defensive XML parsing via `fast-xml-parser`.
+  - [src/services/planGenerator.ts](src/services/planGenerator.ts) — Claude Sonnet prompt builder, 60s timeout, response validator against the plan_json schema (decision 0003).
+  - [src/routes/plans.ts](src/routes/plans.ts) — `POST /api/plans/generate` (multipart; requireAuth + checkPlanAccess) and `GET /api/plans/:id`.
+  - [src/app.ts](src/app.ts) — wired `plansRouter` at `/api/plans`.
+  - [../fuelplan-shared/decisions/0003-plan-json-schema.md](../fuelplan-shared/decisions/0003-plan-json-schema.md) — locked plan_json schema.
 
 ## Next up
 
-- Apply `0001_init.sql` to the dedicated Supabase project via SQL editor.
+- Apply migrations `0001`, `0002`, `0003` to the Supabase project via SQL editor (in order).
 - Verify the `on_auth_user_created` trigger fires by signing up a test user.
-- Wire `src/lib/supabase.js` (admin client) and `requireAuth` middleware.
+- Smoke-test the generate endpoint with a real GPX file and a seeded test user.
+- Stripe webhook + checkout routes (separate session).
 
 ## Blocked / waiting on
 
-- Need the dedicated Supabase project credentials in `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`).
+- Need Supabase project credentials in `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`).
+- Need `ANTHROPIC_API_KEY` in `.env` for local testing of generation.
 
 ## Mid-edit files
-
-> Ideally none — finish a slice, commit, then stop.
 
 - (none)
 
 ## Notes for next session
 
-- (e.g. The Pálava test GPX has 12k points — added downsampling to `gpxParser.js`. Watch token usage on longer routes.)
+- Large GPX files (>10k points) are parsed fine but watch Anthropic token usage if the route summary ever gets embedded verbatim — currently we only pass totals (distance, elevation, point count).
+- The `insert_plan_and_decrement_credit` RPC uses `FOR UPDATE` on `subscriptions` to prevent race conditions on free-tier concurrent requests.
+- Claude response validation is strict on structure but lenient on numeric precision (all fields rounded to nearest integer). If Claude starts producing unrealistic totals, add range checks to `validatePlanJson`.

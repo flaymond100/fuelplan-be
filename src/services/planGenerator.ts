@@ -382,9 +382,9 @@ function validatePlanJson(raw: unknown): PlanJson {
 
 // ── Main entry point ─────────────────────────────────────────────────────────
 
-const CLAUDE_MODEL = 'claude-sonnet-4-6';
-const CLAUDE_MAX_TOKENS = 4096;
-const CLAUDE_TIMEOUT_MS = 60_000;
+const CLAUDE_MODEL = 'claude-sonnet-4-5';
+const CLAUDE_MAX_TOKENS = 8100;
+const CLAUDE_TIMEOUT_MS = 120_000;
 
 const SYSTEM_PROMPT = `You are an expert endurance sports nutritionist specialising in race-day fuelling strategies for cyclists and runners. You create detailed, evidence-based, personalised nutrition plans.
 

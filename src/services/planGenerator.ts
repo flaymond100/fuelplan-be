@@ -75,6 +75,7 @@ export interface PlanJson {
 
 export interface AthleteProfile {
   weight_kg: number | null;
+  height_cm: number | null;
   sex: string | null;
   birth_date: string | null;
   disciplines: string[];
@@ -85,6 +86,7 @@ export interface AthleteProfile {
   sweat_rate: string | null;
   max_carbs_g_hr: number | null;
   caffeine_tolerance: string | null;
+  supplements: string[];
   fuel_forms: string[];
   diet: string | null;
   restrictions: string[];
@@ -153,6 +155,7 @@ function buildPrompt(p: GenerationParams): string {
 
 ## Athlete Profile
 - Weight: ${profile.weight_kg != null ? `${profile.weight_kg} kg` : 'unknown'}
+- Height: ${profile.height_cm != null ? `${profile.height_cm} cm` : 'unknown'}
 - Sex: ${profile.sex ?? 'unknown'}
 - Age: ~${ageFromBirthDate(profile.birth_date)}
 - Disciplines: ${profile.disciplines.join(', ') || 'unknown'}
@@ -163,6 +166,7 @@ function buildPrompt(p: GenerationParams): string {
 - Sweat rate: ${profile.sweat_rate ?? 'medium'}
 - Max carbs per hour (gut-trained): ${profile.max_carbs_g_hr != null ? `${profile.max_carbs_g_hr} g/hr` : 'unknown'}
 - Caffeine tolerance: ${profile.caffeine_tolerance ?? 'unknown'}
+- Supplements used: ${profile.supplements.join(', ') || 'none'}
 - Preferred fuel forms: ${profile.fuel_forms.join(', ') || 'any'}
 - Diet: ${profile.diet ?? 'omnivore'}
 - Dietary restrictions: ${profile.restrictions.join(', ') || 'none'}${profile.restrictions_other ? `, ${profile.restrictions_other}` : ''}

@@ -85,9 +85,9 @@ router.post(
     const { data: profileRow, error: profileError } = await supabaseService
       .from('profiles')
       .select(
-        'weight_kg,sex,birth_date,disciplines,ftp_watts,running_threshold_sec_per_km,' +
+        'weight_kg,height_cm,sex,birth_date,disciplines,ftp_watts,running_threshold_sec_per_km,' +
         'max_hr,weekly_training_hours,sweat_rate,max_carbs_g_hr,caffeine_tolerance,' +
-        'fuel_forms,diet,restrictions,restrictions_other,avoid_notes',
+        'supplements,fuel_forms,diet,restrictions,restrictions_other,avoid_notes',
       )
       .eq('id', userId)
       .single();

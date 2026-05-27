@@ -11,6 +11,22 @@ export interface NutrientTotals {
   kcal: number;
 }
 
+// Optional rich-rendering fields (decision 0004) ─ additive, schemaVersion stays 1.
+export type ItemKind = 'meal' | 'snack' | 'fuel' | 'supplement' | 'hydration' | 'action';
+export type MacroTone = 'default' | 'green' | 'amber' | 'red';
+export type AlertSeverity = 'info' | 'success' | 'warning' | 'danger';
+
+export interface PhaseMacro {
+  label: string;
+  tone?: MacroTone;
+}
+
+export interface PlanAlert {
+  severity: AlertSeverity;
+  title: string;
+  body: string;
+}
+
 export interface PlanItem {
   offsetMin: number;
   label: string;
@@ -23,6 +39,8 @@ export interface PlanItem {
   caffeineMg: number;
   kcal: number;
   notes: string | null;
+  kind?: ItemKind;
+  detail?: string;
 }
 
 export type PhaseId =
@@ -40,6 +58,7 @@ export interface PlanPhase {
   endOffsetMin: number;
   totals: NutrientTotals;
   items: PlanItem[];
+  macros?: PhaseMacro[];
 }
 
 export interface PlanJson {
@@ -49,6 +68,7 @@ export interface PlanJson {
   totals: NutrientTotals;
   phases: PlanPhase[];
   warnings: string[];
+  alerts?: PlanAlert[];
 }
 
 // ── Athlete profile (subset of profiles table used for prompting) ────────────
@@ -172,7 +192,7 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, no text 
 
 {
   "schemaVersion": 1,
-  "summary": "<1–2 sentence overview of the plan>",
+  "summary": "<1–2 sentence overview of the plan, using \"you\" language, e.g. 'This plan will help you take in 60 g of carbs per hour during the race.'>",
   "estimatedDurationMin": <integer — match targetFinishTime if given; estimate if blank>,
   "totals": { "carbsG": <int>, "fluidsMl": <int>, "sodiumMg": <int>, "caffeineMg": <int>, "kcal": <int> },
   "phases": [
@@ -182,11 +202,16 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, no text 
       "startOffsetMin": <int; negative = minutes before race start>,
       "endOffsetMin": <int>,
       "totals": { "carbsG": <int>, "fluidsMl": <int>, "sodiumMg": <int>, "caffeineMg": <int>, "kcal": <int> },
+      "macros": [
+        { "label": "<short macro-strip chip, e.g. 'Carbs: 8–10 g/kg (~576–720g)'>", "tone": "default | green | amber | red" }
+      ],
       "items": [
         {
           "offsetMin": <int; negative = before start, 0 = race start, positive = after start>,
           "label": "<meal/event name e.g. Breakfast | Lunch | Pre-race snack | Aid station 3 | Recovery shake>",
           "what": "<specific food/drink description with rough quantities>",
+          "kind": "meal | snack | fuel | supplement | hydration | action",
+          "detail": "<optional compact one-liner for supplement cards, e.g. '200mg — half-life covers the full 4h race'; omit if not a supplement>",
           "carbsG": <int>,
           "fat": <int>,
           "protein": <int>,
@@ -199,6 +224,9 @@ Return ONLY a valid JSON object — no markdown fences, no explanation, no text 
       ]
     }
   ],
+  "alerts": [
+    { "severity": "info | success | warning | danger", "title": "<short headline>", "body": "<one or two sentences>" }
+  ],
   "warnings": ["<string — only include if genuinely relevant, e.g. carb tolerance mismatch, heat risk, caffeine caveat>"]
 }
 
@@ -210,7 +238,14 @@ Rules:
 - The "race" phase starts at offsetMin 0 (race start) and ends at estimatedDurationMin.
 - The "recovery" phase starts immediately after the race ends.
 - Provide at least 3 items per phase; aim for a realistic, practical plan rather than an exhaustive one.
-- Do not suggest foods the athlete must avoid. Respect dietary restrictions strictly.`;
+- Do not suggest foods the athlete must avoid. Respect dietary restrictions strictly.
+- Tag every item with "kind":
+  - pre-race supplements (creatine, beta-alanine, nitrates/beetroot, bicarbonate, caffeine pills) → "supplement", and add a short "detail".
+  - in-race gels, drink mix, chews, or bars → "fuel".
+  - real meals → "meal"; small top-ups → "snack"; drinks → "hydration".
+  - logistics-only steps (line up in corridor, bib pickup, race brief) → "action", with all nutrient fields and carbsG set to 0.
+- For each pre-race day phase, emit "macros": 2–4 chips covering the g/kg carb target, a protein note, and a deficit/loading note. Use "tone" for emphasis: "red" for hard constraints, "amber" for cautions, "green" for positives, "default" otherwise.
+- Emit top-level "alerts" for the important callouts (cut-off warnings, heat risk, caffeine caveats) with an appropriate "severity". Keep populating "warnings" with the same callouts as plain strings.`;
 }
 
 // ── Response validation ───────────────────────────────────────────────────────
@@ -241,10 +276,14 @@ function validateTotals(val: unknown, path: string): NutrientTotals {
   };
 }
 
+const VALID_ITEM_KINDS = new Set<string>([
+  'meal', 'snack', 'fuel', 'supplement', 'hydration', 'action',
+]);
+
 function validateItem(val: unknown, path: string): PlanItem {
   if (typeof val !== 'object' || val === null) throw new Error(`${path} must be an object`);
   const i = val as Record<string, unknown>;
-  return {
+  const item: PlanItem = {
     offsetMin: Math.round(assertNumber(i.offsetMin, `${path}.offsetMin`)),
     label: assertString(i.label, `${path}.label`),
     what: assertString(i.what, `${path}.what`),
@@ -257,11 +296,40 @@ function validateItem(val: unknown, path: string): PlanItem {
     kcal: Math.round(assertNumber(i.kcal, `${path}.kcal`)),
     notes: typeof i.notes === 'string' && i.notes.trim() !== '' ? i.notes : null,
   };
+
+  // Optional rich fields (decision 0004) — drop silently when malformed.
+  if (typeof i.kind === 'string' && VALID_ITEM_KINDS.has(i.kind)) {
+    item.kind = i.kind as ItemKind;
+  }
+  if (typeof i.detail === 'string' && i.detail.trim() !== '') {
+    item.detail = i.detail;
+  }
+
+  return item;
 }
 
 const VALID_PHASE_IDS = new Set<string>([
   'pre_race_d3', 'pre_race_d2', 'pre_race_d1', 'pre_race_morning', 'race', 'recovery',
 ]);
+
+const VALID_MACRO_TONES = new Set<string>(['default', 'green', 'amber', 'red']);
+
+// Optional (decision 0004). Drops malformed chips rather than failing the plan.
+function validateMacros(val: unknown): PhaseMacro[] | undefined {
+  if (!Array.isArray(val)) return undefined;
+  const macros: PhaseMacro[] = [];
+  for (const entry of val) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const m = entry as Record<string, unknown>;
+    if (typeof m.label !== 'string' || m.label.trim() === '') continue;
+    const macro: PhaseMacro = { label: m.label };
+    if (typeof m.tone === 'string' && VALID_MACRO_TONES.has(m.tone)) {
+      macro.tone = m.tone as MacroTone;
+    }
+    macros.push(macro);
+  }
+  return macros.length > 0 ? macros : undefined;
+}
 
 function validatePhase(val: unknown, idx: number): PlanPhase {
   if (typeof val !== 'object' || val === null) throw new Error(`phases[${idx}] must be an object`);
@@ -274,7 +342,7 @@ function validatePhase(val: unknown, idx: number): PlanPhase {
     throw new Error(`phases[${idx}].items must be a non-empty array`);
   }
 
-  return {
+  const phase: PlanPhase = {
     id: id as PhaseId,
     label: assertString(ph.label, `phases[${idx}].label`),
     startOffsetMin: Math.round(assertNumber(ph.startOffsetMin, `phases[${idx}].startOffsetMin`)),
@@ -282,6 +350,11 @@ function validatePhase(val: unknown, idx: number): PlanPhase {
     totals: validateTotals(ph.totals, `phases[${idx}].totals`),
     items: ph.items.map((item, j) => validateItem(item, `phases[${idx}].items[${j}]`)),
   };
+
+  const macros = validateMacros(ph.macros);
+  if (macros) phase.macros = macros;
+
+  return phase;
 }
 
 function validatePlanJson(raw: unknown): PlanJson {

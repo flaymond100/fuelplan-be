@@ -18,6 +18,19 @@
 - **GPX signed URL endpoint**: `GET /api/plans/:id/gpx` — verifies ownership, returns 5-min signed URL from `gpx-files` bucket. FE wires `useRouteTrack` against it.
 - **Schema doc reconciliation**: updated `decisions/0003` to match deployed code — `fatG`/`proteinG` (not `fat`/`protein`) and 6 phase IDs. No code or FE changes required.
 
+## Resolved handoff (frontend → backend, decision 0004) — DONE 2026-05-27
+
+> **Full spec:** [HANDOVER-rich-plan-fields.md](HANDOVER-rich-plan-fields.md) · contract [../fuelplan-shared/decisions/0004-plan-json-rich-fields.md](../fuelplan-shared/decisions/0004-plan-json-rich-fields.md).
+
+Implemented the four optional, additive `plan_json` rendering fields in [src/services/planGenerator.ts](src/services/planGenerator.ts). No migration, `schemaVersion` still `1`. Typecheck passes.
+
+- **`item.kind`** — optional enum `meal | snack | fuel | supplement | hydration | action`. Added to the item template in `buildPrompt`; validated against `VALID_ITEM_KINDS` in `validateItem`, dropped when absent/invalid.
+- **`item.detail`** — optional string; kept when a non-empty string, omitted otherwise.
+- **`phase.macros`** — optional `{ label, tone? }[]`; new `validateMacros` helper drops malformed chips (and unknown tones) rather than failing the plan.
+- **`plan.alerts`** — optional `{ severity, title, body }[]`; new `validateAlerts` helper. `warnings[]` still emitted and validated exactly as before.
+- Prompt now instructs: pre-race supplements → `supplement` (+`detail`), in-race gels/fuel → `fuel`, logistics → `action` (zero nutrients), per-pre-race-day `macros` with g/kg targets + tone, and top-level `alerts` mirroring `warnings`.
+- Lenient-on-optional / strict-on-structure preserved: malformed optional fields are dropped, not fatal; bad core structure still throws → HTTP 500 `PLAN_GENERATION_FAILED`.
+
 ## Next up
 
 - Apply migrations `0001`, `0002`, `0003` to the Supabase project via SQL editor (in order).

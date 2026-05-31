@@ -261,6 +261,13 @@ function assertNumber(val: unknown, path: string): number {
   return val;
 }
 
+// Nutrient fields are legitimately absent when zero — Claude omits them.
+function coerceInt(val: unknown): number {
+  if (val == null) return 0;
+  const n = Number(val);
+  return isFinite(n) ? Math.round(n) : 0;
+}
+
 function assertString(val: unknown, path: string): string {
   if (typeof val !== 'string' || val.trim() === '') {
     throw new Error(`${path} must be a non-empty string, got ${JSON.stringify(val)}`);
@@ -272,11 +279,11 @@ function validateTotals(val: unknown, path: string): NutrientTotals {
   if (typeof val !== 'object' || val === null) throw new Error(`${path} must be an object`);
   const t = val as Record<string, unknown>;
   return {
-    carbsG: Math.round(assertNumber(t.carbsG, `${path}.carbsG`)),
-    fluidsMl: Math.round(assertNumber(t.fluidsMl, `${path}.fluidsMl`)),
-    sodiumMg: Math.round(assertNumber(t.sodiumMg, `${path}.sodiumMg`)),
-    caffeineMg: Math.round(assertNumber(t.caffeineMg, `${path}.caffeineMg`)),
-    kcal: Math.round(assertNumber(t.kcal, `${path}.kcal`)),
+    carbsG: coerceInt(t.carbsG),
+    fluidsMl: coerceInt(t.fluidsMl),
+    sodiumMg: coerceInt(t.sodiumMg),
+    caffeineMg: coerceInt(t.caffeineMg),
+    kcal: coerceInt(t.kcal),
   };
 }
 
@@ -291,13 +298,13 @@ function validateItem(val: unknown, path: string): PlanItem {
     offsetMin: Math.round(assertNumber(i.offsetMin, `${path}.offsetMin`)),
     label: assertString(i.label, `${path}.label`),
     what: assertString(i.what, `${path}.what`),
-    carbsG: Math.round(assertNumber(i.carbsG, `${path}.carbsG`)),
-    fatG: Math.round(assertNumber(i.fat, `${path}.fat`)),
-    proteinG: Math.round(assertNumber(i.protein, `${path}.protein`)),
-    fluidsMl: Math.round(assertNumber(i.fluidsMl, `${path}.fluidsMl`)),
-    sodiumMg: Math.round(assertNumber(i.sodiumMg, `${path}.sodiumMg`)),
-    caffeineMg: Math.round(assertNumber(i.caffeineMg, `${path}.caffeineMg`)),
-    kcal: Math.round(assertNumber(i.kcal, `${path}.kcal`)),
+    carbsG: coerceInt(i.carbsG),
+    fatG: coerceInt(i.fat),
+    proteinG: coerceInt(i.protein),
+    fluidsMl: coerceInt(i.fluidsMl),
+    sodiumMg: coerceInt(i.sodiumMg),
+    caffeineMg: coerceInt(i.caffeineMg),
+    kcal: coerceInt(i.kcal),
     notes: typeof i.notes === 'string' && i.notes.trim() !== '' ? i.notes : null,
   };
 

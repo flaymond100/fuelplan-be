@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { supabaseService } from '../config/supabase.js';
 import { encrypt } from '../services/encrypt.js';
-import { exchangeStravaCode } from '../services/strava.js';
+import { exchangeStravaCode, fetchStravaTrainingSnapshot } from '../services/strava.js';
 
 const router = Router();
 
@@ -115,6 +115,45 @@ router.get('/strava/status', authenticate, async (req: Request, res: Response): 
     athleteName: data.strava_athlete_name,
     profilePic: data.strava_profile_pic,
   });
+});
+
+// ── GET /api/integrations/strava/recent-load ─────────────────────────────────
+// Live snapshot of the athlete's last 2 weeks (relative to NOW) for the plan
+// page. The Strava tokens never leave the backend — the FE only ever receives
+// computed numbers (TSS, hours, daily buckets, …), never the OAuth credential.
+
+router.get('/strava/recent-load', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+
+  const { data, error } = await supabaseService
+    .from('profiles')
+    .select('strava_access_token, strava_refresh_token, strava_token_expires_at, ftp_watts')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) {
+    console.error('recent-load profile load failed', { userId, error: error?.message });
+    res.status(500).json({ error: { code: 'PROFILE_ERROR', message: 'Failed to load profile' } });
+    return;
+  }
+
+  const row = data as unknown as Record<string, unknown>;
+  if (!row.strava_access_token || !row.strava_refresh_token) {
+    res.json({ connected: false, snapshot: null });
+    return;
+  }
+
+  // Best-effort: a Strava hiccup returns connected:true, snapshot:null so the FE
+  // can show a soft "couldn't reach Strava" state rather than a hard error.
+  const snapshot = await fetchStravaTrainingSnapshot(
+    userId,
+    row.strava_access_token as string | null,
+    row.strava_refresh_token as string | null,
+    row.strava_token_expires_at as string | null,
+    row.ftp_watts as number | null,
+  );
+
+  res.json({ connected: true, snapshot });
 });
 
 // ── DELETE /api/integrations/strava ──────────────────────────────────────────

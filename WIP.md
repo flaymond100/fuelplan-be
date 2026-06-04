@@ -38,6 +38,12 @@ Implemented the four optional, additive `plan_json` rendering fields in [src/ser
   - `src/routes/integrations.ts` — 4 endpoints at `/api/integrations/strava/*`
   - `src/services/planGenerator.ts` + `src/routes/plans.ts` — Strava recent load injected into Claude prompt when connected
 
+- **Strava live training-load snapshot** (2026-06-04) — powers the FE "your last 2 weeks" panel on the plan page:
+  - `src/services/strava.ts` — refactored: extracted `ensureAccessToken` (refresh-or-decrypt) and `activityCore` (pure per-activity metric mapping) so the race-relative block and the now-relative snapshot share one code path. Existing `fetchStravaRecentLoad` behaviour unchanged.
+  - New `fetchStravaTrainingSnapshot(userId, tokens…, ftpWatts)` — fetches activities `after=now-14d` (`per_page=100`), builds `StravaTrainingSnapshot`: 14 daily buckets (TSS+hours, UTC-stable date math), sport breakdown, totals (sessions/hours/TSS/kJ/distance/elevation/activeDays), this-week-vs-prev-week ramp %, days-since-last-workout, longest session. Never throws; returns null on failure, a zeroed snapshot when fully rested.
+  - New route `GET /api/integrations/strava/recent-load` (`authenticate`) in `src/routes/integrations.ts` → `{ connected, snapshot }`. **Tokens never leave the backend** — the FE asked to "call Strava directly" but the OAuth token is AES-encrypted with the backend-only `ENCRYPTION_KEY`, so we proxy and return computed numbers only.
+  - Keyed to `Date.now()` (server today), not the race date — deliberately distinct from the plan-generation block.
+
 ## Next up
 
 - **Strava integration** — FE fully built and waiting. Full spec: [HANDOVER-strava-integration.md](HANDOVER-strava-integration.md). Register app at strava.com/settings/api first, then build 4 routes + migration + activity injection in planGenerator.

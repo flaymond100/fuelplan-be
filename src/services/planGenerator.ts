@@ -1,5 +1,6 @@
 import { anthropic } from '../config/anthropic.js';
 import type { GpxParseResult } from './gpxParser.js';
+import type { StravaTrainingBlock } from './strava.js';
 
 // ── Plan JSON types (decision 0003) ─────────────────────────────────────────
 
@@ -117,6 +118,8 @@ export interface GenerationParams {
   gpxMeta: { startLat: number; startLng: number; pointCount: number };
   canonical: GpxParseResult;
   profile: AthleteProfile;
+  stravaRecentLoad: StravaTrainingBlock | null;
+  trainingNotes: { minus1?: string; minus2?: string; minus3?: string } | null;
 }
 
 // ── Prompt construction ───────────────────────────────────────────────────────
@@ -190,6 +193,33 @@ function buildPrompt(p: GenerationParams): string {
 
 ## Race Day Weather
 ${weatherStr}
+${p.stravaRecentLoad && p.stravaRecentLoad.activities.length > 0 ? `
+## Recent training block (last ${p.stravaRecentLoad.activities.length} activities — from Strava)
+Summary: ${p.stravaRecentLoad.totalHours}h total${p.stravaRecentLoad.totalTss != null ? `, ~${p.stravaRecentLoad.totalTss} TSS` : ''}${p.stravaRecentLoad.totalKj != null ? `, ${p.stravaRecentLoad.totalKj} kJ` : ''}, ${p.stravaRecentLoad.activeDays} active days, last workout ${p.stravaRecentLoad.daysSinceLastWorkout}d ago
+
+Sessions (most recent first):
+${p.stravaRecentLoad.activities.map((a) => {
+  const parts: string[] = [`${a.daysBeforeRace}d before race`];
+  if (a.durationMin) parts.push(`${a.durationMin} min`);
+  if (a.distanceKm) parts.push(`${a.distanceKm} km`);
+  if (a.elevationM) parts.push(`+${a.elevationM} m`);
+  if (a.normalizedWatts) parts.push(`NP ${a.normalizedWatts}W`);
+  else if (a.avgWatts) parts.push(`avg ${a.avgWatts}W`);
+  if (a.tssEstimate != null) parts.push(`TSS ~${a.tssEstimate} (IF ${a.intensityFactor})`);
+  if (a.avgHr) parts.push(`HR ${a.avgHr}${a.maxHr ? `/${a.maxHr}` : ''}`);
+  if (a.avgSpeedKmh && !a.avgWatts) parts.push(`${a.avgSpeedKmh} km/h`);
+  if (a.sufferScore) parts.push(`effort ${a.sufferScore}`);
+  return `- ${a.type}: ${parts.join(', ')}`;
+}).join('\n')}
+
+Use this to calibrate: carb loading urgency, caffeine timing, fatigue context, and whether the athlete is in a taper or carrying cumulative load into the race.
+` : ''}${p.trainingNotes && Object.keys(p.trainingNotes).length > 0 ? `
+## Planned training in the lead-up (athlete's own plan)
+${p.trainingNotes.minus3 ? `- 3 days before race (planned): ${p.trainingNotes.minus3}` : ''}
+${p.trainingNotes.minus2 ? `- 2 days before race (planned): ${p.trainingNotes.minus2}` : ''}
+${p.trainingNotes.minus1 ? `- 1 day before race (planned): ${p.trainingNotes.minus1}` : ''}
+These are the athlete's intended sessions — not necessarily completed. Use them to anticipate accumulated fatigue going into race day and calibrate carb loading, pre-race morning nutrition, and pacing accordingly.
+` : ''}
 
 ## Output Schema
 Return ONLY a valid JSON object — no markdown fences, no explanation, no text before or after the JSON.

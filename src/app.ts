@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import plansRouter from './routes/plans.js';
+import integrationsRouter from './routes/integrations.js';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -25,6 +26,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/plans', plansRouter);
+app.use('/api/integrations', integrationsRouter);
 // app.use('/api/payments', paymentRoutes);
 
 export default app;

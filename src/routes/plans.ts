@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { checkPlanAccess } from '../middleware/checkAccess.js';
 import { parseGpxBuffer } from '../services/gpxParser.js';
 import { generatePlan, type AthleteProfile, type GenerationParams } from '../services/planGenerator.js';
+import { fetchStravaRecentLoad } from '../services/strava.js';
 import { supabaseService } from '../config/supabase.js';
 
 const router = Router();
@@ -81,13 +82,14 @@ router.post(
       return;
     }
 
-    // ── 4. Load athlete profile ───────────────────────────────────────────
+    // ── 4. Load athlete profile + Strava tokens ───────────────────────────
     const { data: profileRow, error: profileError } = await supabaseService
       .from('profiles')
       .select(
         'weight_kg,height_cm,sex,birth_date,disciplines,ftp_watts,running_threshold_sec_per_km,' +
         'max_hr,weekly_training_hours,sweat_rate,max_carbs_g_hr,caffeine_tolerance,' +
-        'supplements,fuel_forms,diet,restrictions,restrictions_other,avoid_notes',
+        'supplements,fuel_forms,diet,restrictions,restrictions_other,avoid_notes,' +
+        'strava_access_token,strava_refresh_token,strava_token_expires_at',
       )
       .eq('id', userId)
       .single();
@@ -97,6 +99,17 @@ router.post(
       res.status(500).json({ error: { code: 'PROFILE_ERROR', message: 'Failed to load athlete profile' } });
       return;
     }
+
+    // Strava context is best-effort — never fails the whole generation
+    const pr = profileRow as unknown as Record<string, unknown>;
+    const stravaRecentLoad = await fetchStravaRecentLoad(
+      userId,
+      pr.strava_access_token as string | null,
+      pr.strava_refresh_token as string | null,
+      pr.strava_token_expires_at as string | null,
+      raceDate,
+      pr.ftp_watts as number | null,
+    );
 
     // ── 5. Build generation params and call Claude ────────────────────────
     const params: GenerationParams = {
@@ -120,6 +133,11 @@ router.post(
           : { startLat: 0, startLng: 0, pointCount: canonical.pointCount },
       canonical,
       profile: profileRow as unknown as AthleteProfile,
+      stravaRecentLoad,
+      trainingNotes:
+        payload.trainingNotes && typeof payload.trainingNotes === 'object'
+          ? (payload.trainingNotes as GenerationParams['trainingNotes'])
+          : null,
     };
 
     let planJson: Awaited<ReturnType<typeof generatePlan>>;

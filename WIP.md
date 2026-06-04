@@ -31,8 +31,16 @@ Implemented the four optional, additive `plan_json` rendering fields in [src/ser
 - Prompt now instructs: pre-race supplements → `supplement` (+`detail`), in-race gels/fuel → `fuel`, logistics → `action` (zero nutrients), per-pre-race-day `macros` with g/kg targets + tone, and top-level `alerts` mirroring `warnings`.
 - Lenient-on-optional / strict-on-structure preserved: malformed optional fields are dropped, not fatal; bad core structure still throws → HTTP 500 `PLAN_GENERATION_FAILED`.
 
+- **Strava OAuth integration** (2026-06-04):
+  - `migrations/0004_strava_oauth.sql` — 8 new columns on `profiles` (tokens, athlete info, OAuth state)
+  - `src/services/encrypt.ts` — AES-256-GCM encrypt/decrypt using Node built-in crypto; requires `ENCRYPTION_KEY` env var (64-char hex)
+  - `src/services/strava.ts` — token exchange, auto-refresh, activity fetch; all errors swallowed so plan generation always completes
+  - `src/routes/integrations.ts` — 4 endpoints at `/api/integrations/strava/*`
+  - `src/services/planGenerator.ts` + `src/routes/plans.ts` — Strava recent load injected into Claude prompt when connected
+
 ## Next up
 
+- **Strava integration** — FE fully built and waiting. Full spec: [HANDOVER-strava-integration.md](HANDOVER-strava-integration.md). Register app at strava.com/settings/api first, then build 4 routes + migration + activity injection in planGenerator.
 - Apply migrations `0001`, `0002`, `0003` to the Supabase project via SQL editor (in order).
 - Verify the `on_auth_user_created` trigger fires by signing up a test user.
 - Smoke-test the generate endpoint with a real GPX file and a seeded test user.
